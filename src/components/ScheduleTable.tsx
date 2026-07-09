@@ -2,9 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { format, addMonths, eachWeekendOfInterval, endOfMonth, isSaturday, isSunday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../lib/firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Calendar, Plus, User, CalendarDays, EyeOff, Eye, Printer, X } from 'lucide-react';
+import { Calendar, User, CalendarDays, Printer, X } from 'lucide-react';
 import { Button } from './ui/Button';
 
 interface WeekendSchedule {
@@ -23,62 +21,41 @@ const ANNOUNCER_COLORS: Record<string, string> = {
 };
 
 export const ScheduleTable: React.FC = () => {
-  // Estado para controlar até qual mês exibir. Inicialmente até Junho de 2026 (6 meses a partir de Jan 2026)
-  const [monthsToShow, setMonthsToShow] = useState(6);
-  // Estado para controlar meses ocultos/excluídos
-  const [hiddenMonths, setHiddenMonths] = useState<string[]>([]);
-  // Estado para controlar o carregamento inicial do Firestore
-  const [isSyncing, setIsSyncing] = useState(true);
-
-  // Sincronizar com o Firestore
-  React.useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "settings", "scheduleConfig"), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.monthsToShow !== undefined) setMonthsToShow(data.monthsToShow);
-        if (data.hiddenMonths !== undefined) setHiddenMonths(data.hiddenMonths);
-      }
-      setIsSyncing(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const updateScheduleConfig = async (newMonthsToShow: number, newHiddenMonths: string[]) => {
-    try {
-      await setDoc(doc(db, "settings", "scheduleConfig"), {
-        monthsToShow: newMonthsToShow,
-        hiddenMonths: newHiddenMonths
-      }, { merge: true });
-    } catch (error) {
-      console.error("Erro ao salvar configuração de escala:", error);
-    }
-  };
-
   // Estado para controlar qual mês está sendo impresso
   const [printMonth, setPrintMonth] = useState<{ key: string; name: string; weekends: WeekendSchedule[] } | null>(null);
 
+  // Calcula a escala sequencial contínua a partir de 01/01/2026 até o final do próximo mês atual
   const scheduleData = useMemo(() => {
     const startDate = new Date(2026, 0, 1); // 1 de Janeiro de 2026
-    const endDate = endOfMonth(addMonths(startDate, monthsToShow - 1));
+    
+    // Obter o mês atual e o próximo mês com base na data atual
+    const now = new Date();
+    const nextMonthDate = addMonths(now, 1);
+    
+    // Calcular a diferença de meses para saber quantos meses precisamos calcular desde Janeiro de 2026
+    const yearDiff = nextMonthDate.getFullYear() - startDate.getFullYear();
+    const monthDiff = nextMonthDate.getMonth() - startDate.getMonth();
+    const totalMonths = (yearDiff * 12) + monthDiff + 1;
+    
+    const monthsToCalculate = Math.max(2, totalMonths);
+    const endDate = endOfMonth(addMonths(startDate, monthsToCalculate - 1));
     
     const allWeekends = eachWeekendOfInterval({ start: startDate, end: endDate });
     
     const weekends: WeekendSchedule[] = [];
     let announcerIndex = 0; // Começa com Roque de Freitas (índice 0)
 
-    // Agrupar sábados e domingos em pares
+    // Agrupar sábados e domingos em pares mantendo a logística sequencial
     for (let i = 0; i < allWeekends.length; i++) {
       const date = allWeekends[i];
       
       if (isSaturday(date)) {
-        // Encontrou um sábado, verifica se o próximo é domingo
         const saturday = date;
-        let sunday = date; // Fallback caso não tenha domingo (fim do intervalo)
+        let sunday = date;
         
         if (i + 1 < allWeekends.length && isSunday(allWeekends[i+1])) {
            sunday = allWeekends[i+1];
-           i++; // Pula o domingo na iteração
+           i++; // Pula o domingo
         }
         
         const currentAnnouncer = ANNOUNCERS[announcerIndex % ANNOUNCERS.length];
@@ -94,17 +71,21 @@ export const ScheduleTable: React.FC = () => {
     }
 
     return weekends;
-  }, [monthsToShow]);
+  }, []);
 
-  // Agrupar por mês do Sábado (para definir em qual card aparece)
+  // Filtra e agrupa apenas o mês atual e o próximo mês
   const scheduleByMonth = useMemo(() => {
+    const now = new Date();
+    const currentMonthKey = format(now, 'yyyy-MM');
+    const nextMonthKey = format(addMonths(now, 1), 'yyyy-MM');
+
     const grouped: Record<string, WeekendSchedule[]> = {};
     
     scheduleData.forEach(weekend => {
-      // Chave baseada no mês do sábado
       const monthKey = format(weekend.saturday, 'yyyy-MM');
-      // Só adiciona se não estiver na lista de ocultos
-      if (!hiddenMonths.includes(monthKey)) {
+      
+      // Deixa disponível na tela somente o mês atual e o próximo mês disponível
+      if (monthKey === currentMonthKey || monthKey === nextMonthKey) {
         if (!grouped[monthKey]) {
           grouped[monthKey] = [];
         }
@@ -113,63 +94,7 @@ export const ScheduleTable: React.FC = () => {
     });
     
     return grouped;
-  }, [scheduleData, hiddenMonths]);
-
-  const handleAddMonth = () => {
-    // Obter meses visíveis ordenados
-    const visibleMonths = Object.keys(scheduleByMonth).sort();
-    const lastVisibleMonthKey = visibleMonths[visibleMonths.length - 1];
-
-    if (lastVisibleMonthKey) {
-      const [year, month] = lastVisibleMonthKey.split('-').map(Number);
-      const lastDate = new Date(year, month - 1); // mês no Date é 0-11
-      const nextDate = addMonths(lastDate, 1);
-      const nextKey = format(nextDate, 'yyyy-MM');
-
-      // Se o próximo mês estiver oculto, apenas removemos da lista de ocultos
-      if (hiddenMonths.includes(nextKey)) {
-        const newHiddenMonths = hiddenMonths.filter(k => k !== nextKey);
-        setHiddenMonths(newHiddenMonths);
-        updateScheduleConfig(monthsToShow, newHiddenMonths);
-        return;
-      }
-    }
-    
-    // Se não houver meses visíveis ou o próximo não estiver oculto, geramos um novo
-    const newMonthsToShow = monthsToShow + 1;
-    setMonthsToShow(newMonthsToShow);
-    updateScheduleConfig(newMonthsToShow, hiddenMonths);
-  };
-
-  const handleHideMonth = (monthKey: string) => {
-    const newHiddenMonths = [...hiddenMonths, monthKey];
-    setHiddenMonths(newHiddenMonths);
-    updateScheduleConfig(monthsToShow, newHiddenMonths);
-  };
-
-  const handleShowMonth = (monthKey: string) => {
-    const newHiddenMonths = hiddenMonths.filter(k => k !== monthKey);
-    setHiddenMonths(newHiddenMonths);
-    updateScheduleConfig(monthsToShow, newHiddenMonths);
-  };
-
-  const handleHidePastMonths = () => {
-    const now = new Date();
-    const currentMonthKey = format(now, 'yyyy-MM');
-    
-    const pastMonths = Object.keys(scheduleByMonth).filter(key => key < currentMonthKey);
-    if (pastMonths.length > 0) {
-      const newHiddenMonths = Array.from(new Set([...hiddenMonths, ...pastMonths]));
-      setHiddenMonths(newHiddenMonths);
-      updateScheduleConfig(monthsToShow, newHiddenMonths);
-    }
-  };
-
-  const hasPastMonthsVisible = useMemo(() => {
-    const now = new Date();
-    const currentMonthKey = format(now, 'yyyy-MM');
-    return Object.keys(scheduleByMonth).some(key => key < currentMonthKey);
-  }, [scheduleByMonth]);
+  }, [scheduleData]);
 
   const handlePrintMonth = (key: string, name: string, weekends: WeekendSchedule[]) => {
     setPrintMonth({ key, name, weekends });
@@ -178,14 +103,6 @@ export const ScheduleTable: React.FC = () => {
   const executePrint = () => {
     window.print();
   };
-
-  if (isSyncing) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500 animate-pulse">Sincronizando escala...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -207,11 +124,9 @@ export const ScheduleTable: React.FC = () => {
             background: white;
             color: black;
           }
-          /* Esconder botões na impressão */
           .no-print {
             display: none !important;
           }
-          /* Forçar cores de fundo na impressão */
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -226,45 +141,11 @@ export const ScheduleTable: React.FC = () => {
             Escala de Folgas
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Programação de folgas dos locutores para finais de semana.
+            Programação automática de folgas dos locutores (Mês Atual e Mês Seguinte).
           </p>
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          {hasPastMonthsVisible && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleHidePastMonths}
-              className="text-[10px] font-bold uppercase tracking-tight border-amber-200 text-amber-600 hover:bg-amber-50 dark:border-amber-900 dark:text-amber-400"
-            >
-              <EyeOff className="h-3 w-3 mr-1" />
-              Ocultar Passados
-            </Button>
-          )}
-          {hiddenMonths.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ocultos:</span>
-              <div className="flex gap-1">
-                {hiddenMonths.sort().map(key => {
-                  const [y, m] = key.split('-').map(Number);
-                  const d = new Date(y, m - 1, 1);
-                  const name = format(d, 'MMM', { locale: ptBR });
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handleShowMonth(key)}
-                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 uppercase hover:underline flex items-center gap-0.5"
-                      title="Mostrar Mês"
-                    >
-                      <Eye className="h-3 w-3" />
-                      {name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
           <div className="flex gap-2">
             {ANNOUNCERS.map(announcer => (
               <div key={announcer} className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${ANNOUNCER_COLORS[announcer]}`}>
@@ -286,9 +167,9 @@ export const ScheduleTable: React.FC = () => {
             return (
               <motion.div
                 key={key}
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
                 className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col group"
               >
@@ -308,15 +189,6 @@ export const ScheduleTable: React.FC = () => {
                       title="Imprimir Mês"
                     >
                       <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => handleHideMonth(key)}
-                      className="h-8 w-8 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                      title="Ocultar Mês"
-                    >
-                      <EyeOff className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -362,17 +234,6 @@ export const ScheduleTable: React.FC = () => {
             );
           })}
         </AnimatePresence>
-      </div>
-
-      <div className="flex justify-center mt-8">
-        <Button 
-          onClick={handleAddMonth} 
-          size="lg" 
-          className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20 dark:bg-indigo-600 dark:hover:bg-indigo-500"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Gerar mais um MÊS
-        </Button>
       </div>
 
       {/* Print Modal */}
