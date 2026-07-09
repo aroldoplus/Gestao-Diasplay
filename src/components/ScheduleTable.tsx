@@ -24,15 +24,16 @@ export const ScheduleTable: React.FC = () => {
   // Estado para controlar qual mês está sendo impresso
   const [printMonth, setPrintMonth] = useState<{ key: string; name: string; weekends: WeekendSchedule[] } | null>(null);
 
-  // Calcula a escala sequencial contínua a partir de 01/01/2026 até o final do próximo mês atual
+  // Calcula a escala sequencial contínua a partir de uma âncora histórica estável (01/01/2024)
+  // Isso garante suporte tanto para 2025 quanto para anos posteriores sem quebrar a escala ou ficar em branco.
   const scheduleData = useMemo(() => {
-    const startDate = new Date(2026, 0, 1); // 1 de Janeiro de 2026
+    const startDate = new Date(2024, 0, 1); // 1 de Janeiro de 2024
     
     // Obter o mês atual e o próximo mês com base na data atual
     const now = new Date();
     const nextMonthDate = addMonths(now, 1);
     
-    // Calcular a diferença de meses para saber quantos meses precisamos calcular desde Janeiro de 2026
+    // Calcular a diferença de meses para saber quantos meses precisamos calcular desde a data âncora
     const yearDiff = nextMonthDate.getFullYear() - startDate.getFullYear();
     const monthDiff = nextMonthDate.getMonth() - startDate.getMonth();
     const totalMonths = (yearDiff * 12) + monthDiff + 1;
@@ -43,7 +44,7 @@ export const ScheduleTable: React.FC = () => {
     const allWeekends = eachWeekendOfInterval({ start: startDate, end: endDate });
     
     const weekends: WeekendSchedule[] = [];
-    let announcerIndex = 0; // Começa com Roque de Freitas (índice 0)
+    let announcerIndex = 0; // Começa a escala de forma contínua e sequencial
 
     // Agrupar sábados e domingos em pares mantendo a logística sequencial
     for (let i = 0; i < allWeekends.length; i++) {
