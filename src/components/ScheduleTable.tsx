@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { format, addMonths, eachWeekendOfInterval, endOfMonth, isSaturday, isSunday, getDate, getMonth, getYear } from 'date-fns';
+import { format, addMonths, eachWeekendOfInterval, endOfMonth, isSaturday, isSunday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../lib/firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Calendar, Plus, User, CalendarDays, EyeOff, Eye, Printer, X } from 'lucide-react';
 import { Button } from './ui/Button';
 
@@ -24,18 +26,35 @@ export const ScheduleTable: React.FC = () => {
   // Estado para controlar até qual mês exibir. Inicialmente até Junho de 2026 (6 meses a partir de Jan 2026)
   const [monthsToShow, setMonthsToShow] = useState(6);
   // Estado para controlar meses ocultos/excluídos
-  const [hiddenMonths, setHiddenMonths] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('hiddenMonths');
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  const [hiddenMonths, setHiddenMonths] = useState<string[]>([]);
+  // Estado para controlar o carregamento inicial do Firestore
+  const [isSyncing, setIsSyncing] = useState(true);
 
-  // Persistir meses ocultos
+  // Sincronizar com o Firestore
   React.useEffect(() => {
-    localStorage.setItem('hiddenMonths', JSON.stringify(hiddenMonths));
-  }, [hiddenMonths]);
+    const unsubscribe = onSnapshot(doc(db, "settings", "scheduleConfig"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.monthsToShow !== undefined) setMonthsToShow(data.monthsToShow);
+        if (data.hiddenMonths !== undefined) setHiddenMonths(data.hiddenMonths);
+      }
+      setIsSyncing(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const updateScheduleConfig = async (newMonthsToShow: number, newHiddenMonths: string[]) => {
+    try {
+      await setDoc(doc(db, "settings", "scheduleConfig"), {
+        monthsToShow: newMonthsToShow,
+        hiddenMonths: newHiddenMonths
+      }, { merge: true });
+    } catch (error) {
+      console.error("Erro ao salvar configuração de escala:", error);
+    }
+  };
+
   // Estado para controlar qual mês está sendo impresso
   const [printMonth, setPrintMonth] = useState<{ key: string; name: string; weekends: WeekendSchedule[] } | null>(null);
 
@@ -109,21 +128,29 @@ export const ScheduleTable: React.FC = () => {
 
       // Se o próximo mês estiver oculto, apenas removemos da lista de ocultos
       if (hiddenMonths.includes(nextKey)) {
-        setHiddenMonths(prev => prev.filter(k => k !== nextKey));
+        const newHiddenMonths = hiddenMonths.filter(k => k !== nextKey);
+        setHiddenMonths(newHiddenMonths);
+        updateScheduleConfig(monthsToShow, newHiddenMonths);
         return;
       }
     }
     
     // Se não houver meses visíveis ou o próximo não estiver oculto, geramos um novo
-    setMonthsToShow(prev => prev + 1);
+    const newMonthsToShow = monthsToShow + 1;
+    setMonthsToShow(newMonthsToShow);
+    updateScheduleConfig(newMonthsToShow, hiddenMonths);
   };
 
   const handleHideMonth = (monthKey: string) => {
-    setHiddenMonths(prev => [...prev, monthKey]);
+    const newHiddenMonths = [...hiddenMonths, monthKey];
+    setHiddenMonths(newHiddenMonths);
+    updateScheduleConfig(monthsToShow, newHiddenMonths);
   };
 
   const handleShowMonth = (monthKey: string) => {
-    setHiddenMonths(prev => prev.filter(k => k !== monthKey));
+    const newHiddenMonths = hiddenMonths.filter(k => k !== monthKey);
+    setHiddenMonths(newHiddenMonths);
+    updateScheduleConfig(monthsToShow, newHiddenMonths);
   };
 
   const handleHidePastMonths = () => {
@@ -132,7 +159,9 @@ export const ScheduleTable: React.FC = () => {
     
     const pastMonths = Object.keys(scheduleByMonth).filter(key => key < currentMonthKey);
     if (pastMonths.length > 0) {
-      setHiddenMonths(prev => Array.from(new Set([...prev, ...pastMonths])));
+      const newHiddenMonths = Array.from(new Set([...hiddenMonths, ...pastMonths]));
+      setHiddenMonths(newHiddenMonths);
+      updateScheduleConfig(monthsToShow, newHiddenMonths);
     }
   };
 
@@ -149,6 +178,14 @@ export const ScheduleTable: React.FC = () => {
   const executePrint = () => {
     window.print();
   };
+
+  if (isSyncing) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-slate-500 animate-pulse">Sincronizando escala...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
