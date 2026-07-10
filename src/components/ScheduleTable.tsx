@@ -24,10 +24,11 @@ export const ScheduleTable: React.FC = () => {
   // Estado para controlar qual mês está sendo impresso
   const [printMonth, setPrintMonth] = useState<{ key: string; name: string; weekends: WeekendSchedule[] } | null>(null);
 
-  // Calcula a escala sequencial contínua a partir de uma âncora histórica estável (01/01/2024)
-  // Isso garante suporte tanto para 2025 quanto para anos posteriores sem quebrar a escala ou ficar em branco.
+  // Calcula a escala sequencial contínua a partir de 01/01/2026.
+  // Como 2026 começa no ano certo da contagem, fixar em 2026 garante a sequência correta
+  // onde 11/07/2026 cai com Roque de Freitas.
   const scheduleData = useMemo(() => {
-    const startDate = new Date(2024, 0, 1); // 1 de Janeiro de 2024
+    const startDate = new Date(2026, 0, 1); // 1 de Janeiro de 2026
     
     // Obter o mês atual e o próximo mês com base na data atual
     const now = new Date();
