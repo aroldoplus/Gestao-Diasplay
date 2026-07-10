@@ -627,8 +627,8 @@ export default function App() {
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         <div className="mx-auto max-w-7xl flex flex-col gap-6 md:flex-row md:items-center md:justify-between relative z-10">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-[#FFD700] drop-shadow-sm">Gestão de Clientes</h1>
-            <p className="text-indigo-100 mt-1 font-medium text-sm md:text-base opacity-90">Gerencie contratos e chamadas de forma simples e eficiente.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-[#FFD700] drop-shadow-sm">Gestão de Clientes Brisa Mar FM</h1>
+            <p className="text-indigo-100 mt-1 font-medium text-sm md:text-base opacity-90">Gerenciamento de contratos e chamadas de forma simples e eficiente.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button 

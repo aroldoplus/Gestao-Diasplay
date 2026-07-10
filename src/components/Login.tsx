@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { Radio } from 'lucide-react';
+import { Radio, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface LoginProps {
@@ -12,6 +12,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,13 +60,22 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               
               <div className="space-y-2">
                 <label className="text-sm font-medium text-blue-100 ml-1">Senha</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-blue-400 focus:ring-blue-400/20 h-12"
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-blue-400 focus:ring-blue-400/20 h-12 pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 focus:outline-none transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
               {error && (
@@ -96,3 +106,4 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     </div>
   );
 };
+
