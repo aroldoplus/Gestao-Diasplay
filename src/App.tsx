@@ -621,137 +621,109 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-900 p-8 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      <div className="mx-auto max-w-7xl space-y-8">
-        
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      {/* Header Section */}
+      <div className="bg-[#1A237E] pt-8 pb-14 px-4 md:px-8 shadow-lg relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+        <div className="mx-auto max-w-7xl flex flex-col gap-6 md:flex-row md:items-center md:justify-between relative z-10">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Gestão de Clientes</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">Gerencie contratos e chamadas de forma simples e eficiente.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-[#FFD700] drop-shadow-sm">Gestão de Clientes</h1>
+            <p className="text-indigo-100 mt-1 font-medium text-sm md:text-base opacity-90">Gerencie contratos e chamadas de forma simples e eficiente.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button 
               onClick={() => setIsDarkMode(!isDarkMode)} 
               variant="ghost" 
               size="icon" 
-              className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              className="text-indigo-100 hover:text-white hover:bg-white/10 border-transparent"
               title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
             >
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-            <Button onClick={() => setIsTrashOpen(true)} variant="outline" className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-900/50 dark:bg-orange-900/10 dark:hover:bg-orange-900/20" title="Clientes Vencidos">
-              <Archive className="h-4 w-4" />
+            <Button onClick={() => setIsTrashOpen(true)} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Clientes Vencidos">
+              <Archive className="h-4 w-4 text-orange-300" />
               <span className="hidden md:inline">Clientes Vencidos ({trash.length})</span>
             </Button>
-            <Button onClick={() => setIsRealTrashOpen(true)} variant="outline" className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:bg-red-900/10 dark:hover:bg-red-900/20" title="Lixeira">
-              <Trash2 className="h-4 w-4" />
+            <Button onClick={() => setIsRealTrashOpen(true)} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Lixeira">
+              <Trash2 className="h-4 w-4 text-red-300" />
               <span className="hidden md:inline">Lixeira ({lixeira.length})</span>
             </Button>
-            <Button onClick={handleExportCSV} variant="outline" className="gap-2 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" title="Exportar CSV">
+            <Button onClick={handleExportCSV} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Exportar CSV">
               <Download className="h-4 w-4" />
               <span className="hidden md:inline">Exportar CSV</span>
             </Button>
             {activeTab === 'expenses' ? (
-              <Button onClick={handleAddExpense} className="gap-2 bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-500">
+              <Button onClick={handleAddExpense} className="gap-2 bg-red-500 hover:bg-red-600 border-none text-white shadow-md transition-all">
                 <Plus className="h-4 w-4" />
                 <span className="hidden md:inline">Nova Despesa</span>
                 <span className="md:hidden">Nova</span>
               </Button>
             ) : (
-              <Button onClick={handleAddClient} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-600 dark:hover:bg-indigo-500">
+              <Button onClick={handleAddClient} className="gap-2 bg-[#FFD700] hover:bg-[#F2C800] text-[#2c3e50] border-none shadow-md font-bold transition-all">
                 <Plus className="h-4 w-4" />
                 <span className="hidden md:inline">Novo Cliente</span>
                 <span className="md:hidden">Novo</span>
               </Button>
             )}
-            <Button onClick={handleLogout} variant="ghost" size="icon" className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 ml-2" title="Sair">
+            <Button onClick={handleLogout} variant="ghost" size="icon" className="text-indigo-100 hover:text-white hover:bg-white/10 border-transparent ml-2" title="Sair">
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
         </div>
+      </div>
 
+      <div className="mx-auto max-w-7xl px-4 md:px-8 -mt-6 relative z-20 space-y-8 pb-12">
         {/* Tabs */}
-        <div className="grid grid-cols-2 gap-2 mb-4 md:mb-0 md:flex md:items-center md:gap-2 md:border-b md:border-slate-200 md:dark:border-slate-700">
+        <div className="grid grid-cols-2 gap-1 mb-4 md:mb-0 md:flex md:items-center bg-white dark:bg-slate-800 p-1.5 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 w-full md:w-max">
           <button
             onClick={() => setActiveTab('clients')}
-            className={`p-3 rounded-lg border text-center text-xs font-medium transition-all relative md:px-6 md:py-3 md:text-sm md:border-0 md:rounded-none ${
+            className={`px-4 py-2.5 rounded-lg text-center text-xs font-semibold transition-all relative md:text-sm ${
               activeTab === 'clients'
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 md:bg-transparent md:text-indigo-600 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300 dark:md:text-indigo-400'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 md:bg-transparent md:border-0 md:text-slate-500 md:hover:text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:md:text-slate-400 dark:md:hover:text-slate-200'
+                ? 'bg-indigo-50 text-[#1A237E] dark:bg-indigo-900/30 dark:text-indigo-300 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             CLIENTES
-            {activeTab === 'clients' && (
-              <motion.div
-                layoutId="activeTab"
-                className="hidden md:block absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"
-              />
-            )}
           </button>
           <button
             onClick={() => setActiveTab('bmn')}
-            className={`p-3 rounded-lg border text-center text-xs font-medium transition-all relative md:px-6 md:py-3 md:text-sm md:border-0 md:rounded-none ${
+            className={`px-4 py-2.5 rounded-lg text-center text-xs font-semibold transition-all relative md:text-sm ${
               activeTab === 'bmn'
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 md:bg-transparent md:text-indigo-600 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300 dark:md:text-indigo-400'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 md:bg-transparent md:border-0 md:text-slate-500 md:hover:text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:md:text-slate-400 dark:md:hover:text-slate-200'
+                ? 'bg-indigo-50 text-[#1A237E] dark:bg-indigo-900/30 dark:text-indigo-300 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             ANUNCIANTES BMN
-            {activeTab === 'bmn' && (
-              <motion.div
-                layoutId="activeTab"
-                className="hidden md:block absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400"
-              />
-            )}
           </button>
           <button
             onClick={() => setActiveTab('programs')}
-            className={`p-3 rounded-lg border text-center text-xs font-medium transition-all relative md:px-6 md:py-3 md:text-sm md:border-0 md:rounded-none ${
+            className={`px-4 py-2.5 rounded-lg text-center text-xs font-semibold transition-all relative md:text-sm ${
               activeTab === 'programs'
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 md:bg-transparent md:text-indigo-600 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300 dark:md:text-indigo-400'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 md:bg-transparent md:border-0 md:text-slate-500 md:hover:text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:md:text-slate-400 dark:md:hover:text-slate-200'
+                ? 'bg-indigo-50 text-[#1A237E] dark:bg-indigo-900/30 dark:text-indigo-300 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             PROGRAMAS E PROGRAMETES
-            {activeTab === 'programs' && (
-              <motion.div
-                layoutId="activeTab"
-                className="hidden md:block absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400"
-              />
-            )}
           </button>
           <button
             onClick={() => setActiveTab('folgas')}
-            className={`p-3 rounded-lg border text-center text-xs font-medium transition-all relative md:px-6 md:py-3 md:text-sm md:border-0 md:rounded-none ${
+            className={`px-4 py-2.5 rounded-lg text-center text-xs font-semibold transition-all relative md:text-sm ${
               activeTab === 'folgas'
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 md:bg-transparent md:text-indigo-600 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300 dark:md:text-indigo-400'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 md:bg-transparent md:border-0 md:text-slate-500 md:hover:text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:md:text-slate-400 dark:md:hover:text-slate-200'
+                ? 'bg-indigo-50 text-[#1A237E] dark:bg-indigo-900/30 dark:text-indigo-300 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             ESCALA DE FOLGAS
-            {activeTab === 'folgas' && (
-              <motion.div
-                layoutId="activeTab"
-                className="hidden md:block absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400"
-              />
-            )}
           </button>
           <button
             onClick={() => setActiveTab('expenses')}
-            className={`p-3 rounded-lg border text-center text-xs font-medium transition-all relative md:px-6 md:py-3 md:text-sm md:border-0 md:rounded-none col-span-2 md:col-span-1 ${
+            className={`col-span-2 md:col-span-1 px-4 py-2.5 rounded-lg text-center text-xs font-semibold transition-all relative md:text-sm ${
               activeTab === 'expenses'
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 md:bg-transparent md:text-indigo-600 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300 dark:md:text-indigo-400'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 md:bg-transparent md:border-0 md:text-slate-500 md:hover:text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:md:text-slate-400 dark:md:hover:text-slate-200'
+                ? 'bg-indigo-50 text-[#1A237E] dark:bg-indigo-900/30 dark:text-indigo-300 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             DESPESAS
-            {activeTab === 'expenses' && (
-              <motion.div
-                layoutId="activeTab"
-                className="hidden md:block absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400"
-              />
-            )}
           </button>
         </div>
 
