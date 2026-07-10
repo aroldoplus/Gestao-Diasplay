@@ -190,7 +190,7 @@ export const ClientRow: React.FC<ClientRowProps> = ({ client, onUpdate, onDelete
                 size="sm"
                 variant="outline"
                 onClick={() => setIsSchedulingModalOpen(true)}
-                className="h-7 px-2 text-[9px] font-bold uppercase tracking-tighter gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+                className="h-6 px-1.5 text-[10px] font-medium tracking-normal gap-1 border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 <Calendar className="h-3 w-3" />
                 <span className="hidden sm:inline">Programar</span>
@@ -285,8 +285,8 @@ export const ClientRow: React.FC<ClientRowProps> = ({ client, onUpdate, onDelete
             variant="ghost"
             onClick={() => setIsObsModalOpen(true)}
             className={cn(
-              "h-8 w-8",
-              client.observations ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:text-amber-400" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:text-slate-500"
+              "h-8 w-8 transition-all",
+              client.observations ? "text-white bg-[#1A237E] hover:bg-[#1A237E]/90 shadow-sm dark:bg-indigo-600 dark:hover:bg-indigo-500 dark:text-white" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:text-slate-500"
             )}
           >
             <AlertCircle className="h-4 w-4" />
