@@ -117,7 +117,7 @@ export const ScheduleViewModal: React.FC<ScheduleViewModalProps> = ({
                 </div>
               </div>
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Início do Contrato</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Início</span>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-green-500" />
                   <p className="text-lg font-semibold text-slate-700">

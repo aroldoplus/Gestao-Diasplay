@@ -475,7 +475,7 @@ export default function App() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Nome do Cliente', 'Valor do Contrato', 'Chamadas', 'Data de Cobrança', 'Início do Contrato', 'Data Final'];
+    const headers = ['Nome do Cliente', 'Valor do Contrato', 'Chamadas', 'Data de Cobrança', 'Início', 'Data Final'];
     
     const flattenClients = (list: Client[]): Client[] => {
       let flat: Client[] = [];
@@ -881,7 +881,7 @@ export default function App() {
                       </th>
                       <th className="h-12 px-4 align-middle font-medium hover:text-slate-700 cursor-pointer transition-colors w-48 bg-purple-50/80 text-purple-900 dark:bg-purple-900/40 dark:text-purple-100 dark:hover:text-purple-50" onClick={() => handleSort('startDate')}>
                         <div className="flex items-center gap-1">
-                          Início do Contrato
+                          Início
                           {sortConfig.field === 'startDate' && (
                             sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
                           )}

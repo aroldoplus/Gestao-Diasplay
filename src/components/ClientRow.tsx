@@ -269,7 +269,7 @@ export const ClientRow: React.FC<ClientRowProps> = ({ client, onUpdate, onDelete
               )}
             >
               <DollarSign className="h-3 w-3" />
-              {client.paymentStatus === 'paid' ? 'PAGO' : 'NÃO PAGO'}
+              {client.paymentStatus === 'paid' ? 'PAGO' : 'PENDENTE'}
             </Button>
             {client.paymentStatus === 'paid' && client.paymentConfirmedDate && (
               <span className="text-[10px] font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">
@@ -286,7 +286,7 @@ export const ClientRow: React.FC<ClientRowProps> = ({ client, onUpdate, onDelete
             onClick={() => setIsObsModalOpen(true)}
             className={cn(
               "h-8 w-8 transition-all",
-              client.observations ? "text-white bg-[#1A237E] hover:bg-[#1A237E]/90 shadow-sm dark:bg-indigo-600 dark:hover:bg-indigo-500 dark:text-white" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:text-slate-500"
+              client.observations ? "text-yellow-700 bg-[#FFD700]/20 hover:bg-[#FFD700]/30 shadow-sm dark:bg-[#FFD700]/20 dark:hover:bg-[#FFD700]/30 dark:text-[#FFD700]" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:text-slate-500"
             )}
           >
             <AlertCircle className="h-4 w-4" />
