@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { INITIAL_CLIENTS } from './data';
 import { Client, Program, Expense } from './types';
-import { Search, Plus, Download, ChevronUp, ChevronDown, Users, Trash2, RotateCcw, X, LogOut, Moon, Sun, Radio, ReceiptText, Archive, AlertCircle } from 'lucide-react';
+import { Search, Plus, Download, ChevronUp, ChevronDown, Users, Trash2, RotateCcw, X, LogOut, Moon, Sun, Radio, ReceiptText, Archive, AlertCircle, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClientRow } from './components/ClientRow';
 import { ProgramRow } from './components/ProgramRow';
@@ -97,6 +97,23 @@ export default function App() {
     return calculateTotal(clients);
   }, [clients]);
 
+  // Calculate total collected value (clients marked as 'paid')
+  const totalCollectedValue = useMemo(() => {
+    const calculateCollected = (list: Client[]): number => {
+      return list.reduce((acc, client) => {
+        // Only count active and paid clients
+        if (client.suspended) return acc;
+        
+        let collected = client.paymentStatus === 'paid' ? (client.contractValue || 0) : 0;
+        if (client.subClients) {
+          collected += calculateCollected(client.subClients);
+        }
+        return acc + collected;
+      }, 0);
+    };
+    return calculateCollected(clients);
+  }, [clients]);
+
   // Calculate total expenses
   const totalExpenses = useMemo(() => {
     return expenses.reduce((acc, expense) => acc + (expense.value || 0), 0);
@@ -106,6 +123,37 @@ export default function App() {
   const totalPaidExpenses = useMemo(() => {
     return expenses.reduce((acc, expense) => acc + (expense.paid ? (expense.value || 0) : 0), 0);
   }, [expenses]);
+
+  // Separated values for BMN and Others
+  const separatedValues = useMemo(() => {
+    const calculate = (list: Client[]): { total: number; collected: number } => {
+      return list.reduce((acc, client) => {
+        if (client.suspended) return acc;
+        
+        let total = client.contractValue || 0;
+        let collected = client.paymentStatus === 'paid' ? (client.contractValue || 0) : 0;
+        
+        if (client.subClients) {
+          const sub = calculate(client.subClients);
+          total += sub.total;
+          collected += sub.collected;
+        }
+        
+        return {
+          total: acc.total + total,
+          collected: acc.collected + collected
+        };
+      }, { total: 0, collected: 0 });
+    };
+
+    const bmnItems = clients.filter(c => c.name.toUpperCase().includes('BMN'));
+    const normalItems = clients.filter(c => !c.name.toUpperCase().includes('BMN'));
+
+    return {
+      bmn: calculate(bmnItems),
+      normal: calculate(normalItems)
+    };
+  }, [clients]);
 
   // Check for existing session
   useEffect(() => {
@@ -766,34 +814,34 @@ export default function App() {
                 <span>Lista de despesas e gastos mensais.</span>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-6">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                 <button 
                   onClick={() => setCallCountFilter('all')}
-                  className={`flex items-center gap-2 transition-opacity hover:opacity-80 ${callCountFilter === 'all' ? 'opacity-100 ring-2 ring-slate-400 rounded-lg p-1 -m-1 dark:ring-slate-500' : 'opacity-60'}`}
+                  className={`flex items-center gap-1.5 transition-opacity hover:opacity-80 ${callCountFilter === 'all' ? 'opacity-100 ring-2 ring-slate-400 rounded-lg p-1 dark:ring-slate-500' : 'opacity-60'}`}
                 >
-                  <span className="inline-flex items-center justify-center rounded-lg bg-slate-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm ring-1 ring-inset ring-slate-600/10 min-w-[3rem] h-8 dark:bg-slate-600">All</span>
-                  <span>Ver todos</span>
+                  <span className="inline-flex items-center justify-center rounded-lg bg-slate-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm ring-1 ring-inset ring-slate-600/10 min-w-[2.5rem] h-7 dark:bg-slate-600 uppercase">All</span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">Todos</span>
                 </button>
                 <button 
                   onClick={() => setCallCountFilter('low')}
-                  className={`flex items-center gap-2 transition-opacity hover:opacity-80 ${callCountFilter === 'low' ? 'opacity-100 ring-2 ring-red-400 rounded-lg p-1 -m-1' : 'opacity-60'}`}
+                  className={`flex items-center gap-1.5 transition-opacity hover:opacity-80 ${callCountFilter === 'low' ? 'opacity-100 ring-2 ring-red-400 rounded-lg p-1' : 'opacity-60'}`}
                 >
-                  <span className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-1.5 text-sm font-bold text-white shadow-sm ring-1 ring-inset ring-red-700/10 min-w-[3rem] h-8 dark:bg-red-700"></span>
-                  <span>Até 03 chamadas</span>
+                  <span className="inline-flex items-center justify-center rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm ring-1 ring-inset ring-red-700/10 min-w-[2.5rem] h-7 dark:bg-red-700">0-3</span>
+                  <span className="text-[11px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">Chamadas</span>
                 </button>
                 <button 
                   onClick={() => setCallCountFilter('medium')}
-                  className={`flex items-center gap-2 transition-opacity hover:opacity-80 ${callCountFilter === 'medium' ? 'opacity-100 ring-2 ring-amber-400 rounded-lg p-1 -m-1' : 'opacity-60'}`}
+                  className={`flex items-center gap-1.5 transition-opacity hover:opacity-80 ${callCountFilter === 'medium' ? 'opacity-100 ring-2 ring-amber-400 rounded-lg p-1' : 'opacity-60'}`}
                 >
-                  <span className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm ring-1 ring-inset ring-amber-600/10 min-w-[3rem] h-8 dark:bg-amber-600"></span>
-                  <span>Até 06 chamadas</span>
+                  <span className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm ring-1 ring-inset ring-amber-600/10 min-w-[2.5rem] h-7 dark:bg-amber-600">4-6</span>
+                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">Chamadas</span>
                 </button>
                 <button 
                   onClick={() => setCallCountFilter('high')}
-                  className={`flex items-center gap-2 transition-opacity hover:opacity-80 ${callCountFilter === 'high' ? 'opacity-100 ring-2 ring-green-400 rounded-lg p-1 -m-1' : 'opacity-60'}`}
+                  className={`flex items-center gap-1.5 transition-opacity hover:opacity-80 ${callCountFilter === 'high' ? 'opacity-100 ring-2 ring-green-400 rounded-lg p-1' : 'opacity-60'}`}
                 >
-                  <span className="inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-1.5 text-sm font-bold text-white shadow-sm ring-1 ring-inset ring-green-700/10 min-w-[3rem] h-8 dark:bg-green-700"></span>
-                  <span>Acima de 06 chamadas</span>
+                  <span className="inline-flex items-center justify-center rounded-lg bg-green-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm ring-1 ring-inset ring-green-700/10 min-w-[2.5rem] h-7 dark:bg-green-700">7+</span>
+                  <span className="text-[11px] font-bold text-green-600 dark:text-green-400 uppercase tracking-tight">Chamadas</span>
                 </button>
               </div>
             )}
@@ -814,11 +862,65 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/50">
-                <span className="text-emerald-700 font-medium uppercase text-xs tracking-wider dark:text-emerald-400">Valor Total:</span>
-                <span className="text-emerald-700 font-bold text-lg dark:text-emerald-400">
-                  {totalContractValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </span>
+              <div className="flex flex-col gap-3">
+                {/* Geral */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/50">
+                    <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-emerald-700 font-medium uppercase text-[10px] tracking-wider dark:text-emerald-400">Total Geral:</span>
+                    <span className="text-emerald-700 font-bold text-sm dark:text-emerald-400">
+                      {totalContractValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/50">
+                    <DollarSign className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-blue-700 font-medium uppercase text-[10px] tracking-wider dark:text-blue-400">Arrecadação Geral:</span>
+                    <span className="text-blue-700 font-bold text-sm dark:text-blue-400">
+                      {totalCollectedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Separados */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  {/* BMN */}
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">Anunciantes BMN</p>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700">
+                        <span className="text-slate-500 font-medium text-[9px] uppercase dark:text-slate-400">Total:</span>
+                        <span className="text-slate-700 font-bold text-[11px] dark:text-slate-200">
+                          {separatedValues.bmn.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded border border-blue-100 dark:bg-blue-900/10 dark:border-blue-800/50">
+                        <span className="text-blue-600 font-medium text-[9px] uppercase dark:text-blue-400">Pago:</span>
+                        <span className="text-blue-700 font-bold text-[11px] dark:text-blue-300">
+                          {separatedValues.bmn.collected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Normais */}
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] px-1">Clientes Normais</p>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700">
+                        <span className="text-slate-500 font-medium text-[9px] uppercase dark:text-slate-400">Total:</span>
+                        <span className="text-slate-700 font-bold text-[11px] dark:text-slate-200">
+                          {separatedValues.normal.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-emerald-50/50 px-2 py-1 rounded border border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800/50">
+                        <span className="text-emerald-600 font-medium text-[9px] uppercase dark:text-emerald-400">Pago:</span>
+                        <span className="text-emerald-700 font-bold text-[11px] dark:text-emerald-300">
+                          {separatedValues.normal.collected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

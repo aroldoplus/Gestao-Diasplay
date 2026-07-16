@@ -179,7 +179,7 @@ export const ClientRow: React.FC<ClientRowProps> = ({ client, onUpdate, onDelete
               />
             ) : (
               <span className={cn(
-                "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-bold text-white shadow-sm ring-1 ring-inset min-w-[3rem]",
+                "inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[13px] font-bold text-white shadow-sm ring-1 ring-inset min-w-[2.5rem] h-7",
                 client.suspended ? "bg-slate-400 ring-slate-500/10 dark:bg-slate-600" : getCallCountColor(client.calls)
               )}>
                 {client.calls}
