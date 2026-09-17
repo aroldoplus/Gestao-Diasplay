@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { INITIAL_CLIENTS } from './data';
 import { Client, Program, Expense } from './types';
-import { Search, Plus, Download, ChevronUp, ChevronDown, Users, Trash2, RotateCcw, X, LogOut, Moon, Sun, Radio, ReceiptText, Archive, AlertCircle, DollarSign } from 'lucide-react';
+import { Search, Plus, Download, ChevronUp, ChevronDown, Users, Trash2, RotateCcw, X, LogOut, Moon, Sun, Radio, ReceiptText, AlertCircle, DollarSign, CheckCircle, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClientRow } from './components/ClientRow';
 import { ProgramRow } from './components/ProgramRow';
@@ -21,9 +21,10 @@ export default function App() {
   const [clients, setClients] = useState<Client[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [trash, setTrash] = useState<Client[]>([]);
-  const [lixeira, setLixeira] = useState<Client[]>([]);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
-  const [isRealTrashOpen, setIsRealTrashOpen] = useState(false);
+  const [expiredModalClient, setExpiredModalClient] = useState<{ client: Client; parentClient?: Client } | null>(null);
+  const [renewalEndDate, setRenewalEndDate] = useState('');
+  const [expiredQueue, setExpiredQueue] = useState<{ client: Client; parentClient?: Client }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ field: SortField; direction: SortDirection }>({
     field: 'name',
@@ -187,33 +188,9 @@ export default function App() {
           const batch = writeBatch(db);
           INITIAL_CLIENTS.forEach((client) => {
             const docRef = doc(db, "clients", client.id);
-            batch.set(docRef, { ...client, deleted: false });
+            batch.set(docRef, { ...client, deleted: false, inLixeira: false });
           });
           await batch.commit();
-        } else {
-          // Check for new specific clients and add them if missing
-          const existingDocs = querySnapshot.docs.map(d => d.data());
-          const batch = writeBatch(db);
-          let hasUpdates = false;
-          
-          const newClientNames = ["Dr leandro serafim", "policlinica N.S.C", "Laclimed"];
-          
-          newClientNames.forEach(name => {
-             const exists = existingDocs.some(doc => doc.name === name);
-             if (!exists) {
-                const clientData = INITIAL_CLIENTS.find(c => c.name === name);
-                if (clientData) {
-                   const docRef = doc(db, "clients", clientData.id);
-                   batch.set(docRef, { ...clientData, deleted: false });
-                   hasUpdates = true;
-                }
-             }
-          });
-          
-          if (hasUpdates) {
-            console.log("Adding new clients to existing database...");
-            await batch.commit();
-          }
         }
       } catch (error) {
         console.error("Error initializing data:", error);
@@ -231,8 +208,7 @@ export default function App() {
       clearTimeout(timeoutId);
       const allDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
       setClients(allDocs.filter(c => !c.deleted && !c.inLixeira));
-      setTrash(allDocs.filter(c => c.deleted && !c.inLixeira));
-      setLixeira(allDocs.filter(c => c.inLixeira));
+      setTrash(allDocs.filter(c => c.deleted || c.inLixeira));
       setLoading(false);
       setError(null);
     }, (err) => {
@@ -264,50 +240,176 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  // Check for expired contracts
+  // Check for expired contracts and trigger automatic modal
   useEffect(() => {
     if (!isAuthenticated || clients.length === 0) return;
 
-    const checkExpiration = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      const batch = writeBatch(db);
-      let hasUpdates = false;
+    const today = new Date().toISOString().split('T')[0];
+    const unnotifiedExpired: { client: Client; parentClient?: Client }[] = [];
 
-      clients.forEach(client => {
-        // Check root client
-        if (!client.suspended && client.endDate < today) {
-          const docRef = doc(db, "clients", client.id);
-          batch.update(docRef, { suspended: true });
-          hasUpdates = true;
-        }
-
-        // Check sub-clients
-        if (client.subClients) {
-          let subClientsChanged = false;
-          const updatedSubClients = client.subClients.map(sub => {
-            if (!sub.suspended && sub.endDate < today) {
-              subClientsChanged = true;
-              return { ...sub, suspended: true };
-            }
-            return sub;
-          });
-
-          if (subClientsChanged) {
-            const docRef = doc(db, "clients", client.id);
-            batch.update(docRef, { subClients: updatedSubClients });
-            hasUpdates = true;
+    clients.forEach(client => {
+      // Check root client
+      if (client.name !== "Anunciantes BMN") {
+        if (client.endDate && client.endDate < today) {
+          if (client.expirationAcknowledgedDate !== client.endDate) {
+            unnotifiedExpired.push({ client });
           }
         }
-      });
-
-      if (hasUpdates) {
-        console.log("Suspending expired contracts...");
-        await batch.commit();
       }
-    };
 
-    checkExpiration();
+      // Check sub-clients
+      if (client.subClients && client.subClients.length > 0) {
+        client.subClients.forEach(sub => {
+          if (sub.endDate && sub.endDate < today) {
+            if (sub.expirationAcknowledgedDate !== sub.endDate) {
+              unnotifiedExpired.push({ client: sub, parentClient: client });
+            }
+          }
+        });
+      }
+    });
+
+    if (unnotifiedExpired.length > 0) {
+      setExpiredQueue(unnotifiedExpired);
+      setExpiredModalClient(unnotifiedExpired[0]);
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      setRenewalEndDate(d.toISOString().split('T')[0]);
+    }
   }, [clients, isAuthenticated]);
+
+  const advanceExpiredQueue = () => {
+    setExpiredQueue(prev => {
+      const nextQueue = prev.slice(1);
+      if (nextQueue.length > 0) {
+        setExpiredModalClient(nextQueue[0]);
+        const d = new Date();
+        d.setDate(d.getDate() + 30);
+        setRenewalEndDate(d.toISOString().split('T')[0]);
+      } else {
+        setExpiredModalClient(null);
+      }
+      return nextQueue;
+    });
+  };
+
+  const handleRenewExpiredClient = async () => {
+    if (!expiredModalClient) return;
+    const { client, parentClient } = expiredModalClient;
+    const finalDate = renewalEndDate || (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      return d.toISOString().split('T')[0];
+    })();
+
+    try {
+      if (parentClient) {
+        // Sub-client
+        const parentDocRef = doc(db, "clients", parentClient.id);
+        const parentDoc = await getDoc(parentDocRef);
+        if (parentDoc.exists()) {
+          const parentData = parentDoc.data() as Client;
+          const updatedSubs = (parentData.subClients || []).map(s => {
+            if (s.id === client.id) {
+              return {
+                ...s,
+                endDate: finalDate,
+                suspended: false,
+                expirationAcknowledgedDate: finalDate
+              };
+            }
+            return s;
+          });
+          await updateDoc(parentDocRef, { subClients: updatedSubs });
+        }
+      } else {
+        // Root client
+        await updateDoc(doc(db, "clients", client.id), {
+          endDate: finalDate,
+          suspended: false,
+          expirationAcknowledgedDate: finalDate
+        });
+      }
+
+      advanceExpiredQueue();
+    } catch (err) {
+      console.error("Error renewing contract:", err);
+      alert("Erro ao renovar contrato. Tente novamente.");
+    }
+  };
+
+  const handleKeepSuspended = async () => {
+    if (!expiredModalClient) return;
+    const { client, parentClient } = expiredModalClient;
+
+    try {
+      if (parentClient) {
+        // Sub-client
+        const parentDocRef = doc(db, "clients", parentClient.id);
+        const parentDoc = await getDoc(parentDocRef);
+        if (parentDoc.exists()) {
+          const parentData = parentDoc.data() as Client;
+          const updatedSubs = (parentData.subClients || []).map(s => {
+            if (s.id === client.id) {
+              return {
+                ...s,
+                suspended: true,
+                expirationAcknowledgedDate: client.endDate
+              };
+            }
+            return s;
+          });
+          await updateDoc(parentDocRef, { subClients: updatedSubs });
+        }
+      } else {
+        // Root client
+        await updateDoc(doc(db, "clients", client.id), {
+          suspended: true,
+          expirationAcknowledgedDate: client.endDate
+        });
+      }
+
+      advanceExpiredQueue();
+    } catch (err) {
+      console.error("Error keeping suspended:", err);
+      alert("Erro ao atualizar status. Tente novamente.");
+    }
+  };
+
+  const handleKeepAllSuspended = async () => {
+    try {
+      for (const item of expiredQueue) {
+        const { client, parentClient } = item;
+        if (parentClient) {
+          const parentDocRef = doc(db, "clients", parentClient.id);
+          const parentDoc = await getDoc(parentDocRef);
+          if (parentDoc.exists()) {
+            const parentData = parentDoc.data() as Client;
+            const updatedSubs = (parentData.subClients || []).map(s => {
+              if (s.id === client.id) {
+                return {
+                  ...s,
+                  suspended: true,
+                  expirationAcknowledgedDate: client.endDate
+                };
+              }
+              return s;
+            });
+            await updateDoc(parentDocRef, { subClients: updatedSubs });
+          }
+        } else {
+          await updateDoc(doc(db, "clients", client.id), {
+            suspended: true,
+            expirationAcknowledgedDate: client.endDate
+          });
+        }
+      }
+      setExpiredQueue([]);
+      setExpiredModalClient(null);
+    } catch (err) {
+      console.error("Error keeping all suspended:", err);
+    }
+  };
 
   const handleSort = (field: SortField) => {
     setSortConfig((current) => ({
@@ -341,11 +443,11 @@ export default function App() {
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (confirm('Mover este cliente para clientes vencidos?')) {
+    if (confirm('Mover este cliente para a lixeira?')) {
       // Check if root client
       const rootClient = clients.find(c => c.id === id);
       if (rootClient) {
-        await updateDoc(doc(db, "clients", id), { deleted: true });
+        await updateDoc(doc(db, "clients", id), { deleted: true, inLixeira: true });
         return;
       }
 
@@ -359,7 +461,7 @@ export default function App() {
             await updateDoc(doc(db, "clients", client.id), { subClients: newSubClients });
             
             // Create new doc in trash (root level) with parentId
-            await setDoc(doc(db, "clients", subClient.id), { ...subClient, deleted: true, parentId: client.id });
+            await setDoc(doc(db, "clients", subClient.id), { ...subClient, deleted: true, inLixeira: true, parentId: client.id });
             return;
           }
         }
@@ -377,9 +479,9 @@ export default function App() {
         
         if (parentDoc.exists()) {
            const parentData = parentDoc.data() as Client;
-           // Remove deleted and parentId flags before adding back
-           const { deleted, parentId, ...rest } = clientToRestore;
-           const restoredClient = { ...rest, deleted: false };
+           // Remove deleted, inLixeira and parentId flags before adding back
+           const { deleted, inLixeira, parentId, ...rest } = clientToRestore;
+           const restoredClient = { ...rest, deleted: false, inLixeira: false };
            
            const newSubClients = [...(parentData.subClients || []), restoredClient];
            
@@ -393,24 +495,25 @@ export default function App() {
       }
       
       // Fallback: Restore as root client if parent not found or no parentId
-      await updateDoc(doc(db, "clients", id), { deleted: false, parentId: deleteField() });
+      await updateDoc(doc(db, "clients", id), { deleted: false, inLixeira: false, parentId: deleteField() });
     }
   };
 
-  const handleMoveToLixeira = async (id: string) => {
-    if (confirm('Mover para a lixeira?')) {
-      await updateDoc(doc(db, "clients", id), { inLixeira: true });
-    }
-  };
-
-  const handleRealPermanentDelete = async (id: string) => {
-    if (confirm('Tem certeza? Esta ação não pode ser desfeita.')) {
+  const handlePermanentDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este cliente definitivamente? Esta ação não pode ser desfeita.')) {
       await deleteDoc(doc(db, "clients", id));
     }
   };
 
-  const handleRestoreFromLixeira = async (id: string) => {
-    await updateDoc(doc(db, "clients", id), { inLixeira: false });
+  const handleEmptyTrash = async () => {
+    if (trash.length === 0) return;
+    if (confirm(`Tem certeza que deseja esvaziar a lixeira e excluir definitivamente todos os ${trash.length} clientes? Esta ação não pode ser desfeita.`)) {
+      const batch = writeBatch(db);
+      trash.forEach(c => {
+        batch.delete(doc(db, "clients", c.id));
+      });
+      await batch.commit();
+    }
   };
 
   const handleUpdateProgram = async (updatedProgram: Program) => {
@@ -698,13 +801,10 @@ export default function App() {
             >
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-            <Button onClick={() => setIsTrashOpen(true)} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Clientes Vencidos">
-              <Archive className="h-4 w-4 text-orange-300" />
-              <span className="hidden md:inline">Clientes Vencidos ({trash.length})</span>
-            </Button>
-            <Button onClick={() => setIsRealTrashOpen(true)} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Lixeira">
+            <Button onClick={() => setIsTrashOpen(true)} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Lixeira">
               <Trash2 className="h-4 w-4 text-red-300" />
-              <span className="hidden md:inline">Lixeira ({lixeira.length})</span>
+              <span className="hidden md:inline">Lixeira ({trash.length})</span>
+              <span className="md:hidden">Lixeira ({trash.length})</span>
             </Button>
             <Button onClick={handleExportCSV} variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all" title="Exportar CSV">
               <Download className="h-4 w-4" />
@@ -1078,7 +1178,7 @@ export default function App() {
       )}
       </div>
 
-      {/* Clientes Vencidos Modal */}
+      {/* Unified Lixeira Modal */}
       <AnimatePresence>
         {isTrashOpen && (
           <>
@@ -1093,38 +1193,80 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-xl shadow-xl z-50 p-6 max-h-[80vh] flex flex-col dark:bg-slate-800 dark:border dark:border-slate-700"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-xl shadow-xl z-50 p-6 max-h-[85vh] flex flex-col dark:bg-slate-800 dark:border dark:border-slate-700"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 dark:text-white">
-                  <Archive className="h-5 w-5 text-orange-500" />
-                  Clientes Vencidos
-                </h2>
-                <Button variant="ghost" size="icon" onClick={() => setIsTrashOpen(false)} className="dark:text-slate-400 dark:hover:text-slate-200">
-                  <X className="h-5 w-5" />
-                </Button>
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 dark:text-white">
+                      Lixeira
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        {trash.length} {trash.length === 1 ? 'cliente' : 'clientes'}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Todos os clientes excluídos unificados em um único local.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {trash.length > 0 && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={handleEmptyTrash} 
+                      className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      Esvaziar Lixeira
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={() => setIsTrashOpen(false)} className="dark:text-slate-400 dark:hover:text-slate-200">
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2">
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
                 {trash.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500 dark:text-slate-400">
-                    <Archive className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                    <p>Nenhum cliente vencido</p>
+                  <div className="text-center py-14 text-slate-400 dark:text-slate-500">
+                    <Trash2 className="h-12 w-12 mx-auto mb-3 opacity-25" />
+                    <p className="font-medium text-slate-600 dark:text-slate-400">A lixeira está vazia</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Clientes excluídos aparecerão aqui com opção de restauração.</p>
                   </div>
                 ) : (
                   trash.map(client => (
-                    <div key={client.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
-                      <div>
-                        <p className="font-medium text-slate-900 dark:text-white">{client.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Vencido / Excluído</p>
+                    <div key={client.id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-slate-50 transition-all dark:bg-slate-900/50 dark:border-slate-700">
+                      <div className="space-y-0.5">
+                        <p className="font-semibold text-slate-900 dark:text-white text-sm">{client.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span>{client.parentId ? 'Origem: Anunciantes BMN' : 'Origem: Clientes'}</span>
+                          {client.endDate && (
+                            <>
+                              <span>•</span>
+                              <span>Término: {new Date(client.endDate).toLocaleDateString('pt-BR')}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleRestoreClient(client.id)} className="gap-1 text-green-600 hover:text-green-700 hover:bg-green-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                          <RotateCcw className="h-3 w-3" />
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => handleRestoreClient(client.id)} 
+                          className="gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800/50 dark:text-emerald-400 dark:hover:bg-emerald-900/40"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
                           Restaurar
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleMoveToLixeira(client.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" title="Mover para Lixeira">
-                          <Trash2 className="h-3 w-3" />
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => handlePermanentDelete(client.id)} 
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 dark:hover:text-red-400" 
+                          title="Excluir Definitivamente"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -1136,58 +1278,138 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Lixeira Modal */}
+      {/* Modal Automático de Contrato Vencido */}
       <AnimatePresence>
-        {isRealTrashOpen && (
+        {expiredModalClient && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsRealTrashOpen(false)}
-              className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-xl shadow-xl z-50 p-6 max-h-[80vh] flex flex-col dark:bg-slate-800 dark:border dark:border-slate-700"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl z-50 p-6 dark:bg-slate-800 dark:border dark:border-slate-700"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 dark:text-white">
-                  <Trash2 className="h-5 w-5 text-red-500" />
-                  Lixeira
-                </h2>
-                <Button variant="ghost" size="icon" onClick={() => setIsRealTrashOpen(false)} className="dark:text-slate-400 dark:hover:text-slate-200">
-                  <X className="h-5 w-5" />
-                </Button>
+              {/* Header */}
+              <div className="flex items-start gap-3.5 mb-4">
+                <div className="p-3 rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      Aviso de Vencimento
+                    </span>
+                    {expiredQueue.length > 1 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 font-semibold">
+                        1 de {expiredQueue.length}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+                    Contrato Comercial Vencido
+                  </h3>
+                </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2">
-                {lixeira.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500 dark:text-slate-400">
-                    <Trash2 className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                    <p>A lixeira está vazia</p>
-                  </div>
-                ) : (
-                  lixeira.map(client => (
-                    <div key={client.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
-                      <div>
-                        <p className="font-medium text-slate-900 dark:text-white">{client.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Na lixeira</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleRestoreFromLixeira(client.id)} className="gap-1 text-green-600 hover:text-green-700 hover:bg-green-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                          <RotateCcw className="h-3 w-3" />
-                          Restaurar
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleRealPermanentDelete(client.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" title="Excluir Permanentemente">
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
+              {/* Informative Card */}
+              <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200/70 dark:bg-amber-950/20 dark:border-amber-800/40 mb-4 space-y-2">
+                <p className="text-sm text-slate-800 dark:text-slate-200">
+                  O anunciante <strong className="text-slate-950 dark:text-white font-bold text-base">{expiredModalClient.client.name}</strong> venceu!
+                </p>
+                <div className="text-xs text-slate-600 dark:text-slate-400 flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-amber-200/50 dark:border-amber-800/30">
+                  <span>
+                    Data de término:{' '}
+                    <strong className="text-red-600 dark:text-red-400">
+                      {expiredModalClient.client.endDate
+                        ? new Date(expiredModalClient.client.endDate).toLocaleDateString('pt-BR')
+                        : 'Não informada'}
+                    </strong>
+                  </span>
+                  <span>
+                    Categoria: {expiredModalClient.parentClient ? 'Anunciantes BMN' : 'Clientes'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Renewal Section */}
+              <div className="space-y-2 mb-6">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  Escolha a nova data de vencimento para renovar:
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={renewalEndDate}
+                    onChange={(e) => setRenewalEndDate(e.target.value)}
+                    className="flex-1 dark:bg-slate-900 dark:border-slate-700 dark:text-white text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 30);
+                      setRenewalEndDate(d.toISOString().split('T')[0]);
+                    }}
+                    className="text-xs shrink-0 dark:border-slate-700"
+                  >
+                    +30 dias
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 90);
+                      setRenewalEndDate(d.toISOString().split('T')[0]);
+                    }}
+                    className="text-xs shrink-0 dark:border-slate-700"
+                  >
+                    +90 dias
+                  </Button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleKeepSuspended}
+                  className="w-full sm:w-auto text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-950/30 gap-1.5 text-xs font-semibold"
+                >
+                  <Ban className="h-4 w-4" />
+                  Manter Suspenso
+                </Button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {expiredQueue.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleKeepAllSuspended}
+                      className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                    >
+                      Suspender Todos
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={handleRenewExpiredClient}
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 text-xs shadow-md"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Renovar Contrato
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </>

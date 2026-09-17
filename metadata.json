@@ -1,5 +1,6 @@
 {
   "name": "Gestor de Clientes e Contratos",
   "description": "Uma aplicação estilo planilha para gerenciar clientes, número de chamadas e datas de contrato.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

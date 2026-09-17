@@ -15,6 +15,7 @@ export interface Client {
   paymentConfirmedDate?: string; // ISO string
   observations?: string;
   schedule?: string[];
+  expirationAcknowledgedDate?: string;
 }
 
 export interface Program {
