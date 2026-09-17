@@ -74,6 +74,8 @@ export default function App() {
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientCategory, setNewClientCategory] = useState<'clients' | 'bmn' | 'programs' | 'expenses'>('clients');
+  const [newClientStartDate, setNewClientStartDate] = useState('');
+  const [newClientEndDate, setNewClientEndDate] = useState('');
   const [newProgramTime, setNewProgramTime] = useState('');
   const [newProgramDetails, setNewProgramDetails] = useState('');
   const [newExpenseDescription, setNewExpenseDescription] = useState('');
@@ -435,6 +437,11 @@ export default function App() {
     setNewClientName('');
     setNewProgramTime('');
     setNewProgramDetails('');
+    const today = new Date();
+    const nextMonth = new Date(today);
+    nextMonth.setDate(nextMonth.getDate() + 30);
+    setNewClientStartDate(today.toISOString().split('T')[0]);
+    setNewClientEndDate(nextMonth.toISOString().split('T')[0]);
     setNewClientCategory(activeTab === 'expenses' ? 'clients' : activeTab); // Default to current tab, but not expenses
     setIsAddClientModalOpen(true);
   };
@@ -488,15 +495,18 @@ export default function App() {
         };
         await setDoc(doc(db, "programs", newId), newProgram);
       } else {
+        const finalStartDate = newClientStartDate || new Date().toISOString().split('T')[0];
+        const finalEndDate = newClientEndDate || finalStartDate;
+
         const newClientBase: Client = {
           id: newId,
           name: newClientName.trim(),
           calls: 0,
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: '2026-12-31',
+          startDate: finalStartDate,
+          endDate: finalEndDate,
           deleted: false,
           contractValue: 0,
-          billingDate: new Date().toISOString().split('T')[0],
+          billingDate: finalStartDate,
           suspended: false
         };
 
@@ -1261,6 +1271,31 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                {newClientCategory !== 'programs' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Data Inicial</label>
+                      <Input
+                        type="date"
+                        required
+                        value={newClientStartDate}
+                        onChange={(e) => setNewClientStartDate(e.target.value)}
+                        className="dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Data Final</label>
+                      <Input
+                        type="date"
+                        required
+                        value={newClientEndDate}
+                        onChange={(e) => setNewClientEndDate(e.target.value)}
+                        className="dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {newClientCategory === 'programs' && (
                   <>
